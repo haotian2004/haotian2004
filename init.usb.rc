@@ -12,7 +12,7 @@ on post-fs-data
     mkdir /data/adb 0700 root root
 
 # adbd is controlled via property triggers in init.<platform>.usb.rc
-service adbd /sbin/adbd --root_seclabel=u:r:su:s0
+service adbd /system/bin/adbd --root_seclabel=u:r:su:s0
     class core
     socket adbd stream 660 system system
     disabled
@@ -24,6 +24,23 @@ on property:ro.kernel.qemu=1
 
 on boot
     setprop sys.usb.configfs 0
+
+
+# stop adbd when system in user project && persist.sys.adbd.on=false
+on property:persist.sys.adbd.on=false && property:ro.debuggable=0
+    stop adbd
+    write /sys/class/android_usb/android0/enable 0
+    write /sys/class/android_usb/android0/bDeviceClass 0
+
+#start adbd
+on property:sys.usb.config=adb && property:persist.sys.adbd.on=true
+    write /sys/class/android_usb/android0/enable 0
+    write /sys/class/android_usb/android0/idVendor 18d1
+    write /sys/class/android_usb/android0/idProduct 4EE7
+    write /sys/class/android_usb/android0/functions ${sys.usb.config}
+    write /sys/class/android_usb/android0/enable 1
+    start adbd
+    setprop sys.usb.state ${sys.usb.config}
 
 # Used to disable USB when switching states
 on property:sys.usb.config=none && property:sys.usb.configfs=0
@@ -103,7 +120,7 @@ on property:sys.usb.config=accessory,audio_source,adb && property:sys.usb.config
 
 # Used to set USB configuration at boot and to switch the configuration
 # when changing the default configuration
-on property:persist.sys.usb.config=*
+on boot && property:persist.sys.usb.config=*
     setprop sys.usb.config ${persist.sys.usb.config}
 
 #
